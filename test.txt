@@ -1,0 +1,63 @@
+cd C:\Tools\deep-translator
+call venv\Scripts\activate
+python translate.py --text "Hello there" --source en --target ru
+
+cd C:\Tools\deep-translator && call venv\Scripts\activate && python translate.py --text "Hello there" --source en --target ru
+
+C:\Tools\deep-translator\venv\Scripts\python.exe C:\Tools\deep-translator\venv\Scripts\deep-translator.exe --translator google --source "en" --target "ru" --text "%GDWORD%"
+C:\Tools\deep-translator\venv\Scripts\python.exe C:\Tools\deep-translator\venv\Scripts\deep-translator.exe --translator google --source "de" --target "ru" --text "%GDWORD%"
+C:\Tools\deep-translator\venv\Scripts\python.exe C:\Tools\deep-translator\venv\Scripts\deep-translator.exe --translator google --source "ru" --target "en" --text "%GDWORD%"
+C:\Tools\deep-translator\venv\Scripts\python.exe C:\Tools\deep-translator\venv\Scripts\deep-translator.exe --translator google --source "ru" --target "de" --text "%GDWORD%"
+
+cmd /c "cd C:\Tools\deep-translator && call venv\Scripts\activate && python translate.py --text "%GDWORD%" --source en --target ru"
+
+cd C:\Tools\deep-translator && call venv\Scripts\activate && python translate.py --text "Hello there" --source en --target ru
+cd C:\Tools\deep-translator && call venv\Scripts\activate && python translate.py --text "%GDWORD%" --source de --target ru
+cd C:\Tools\deep-translator && call venv\Scripts\activate && python translate.py --text "%GDWORD%" --source ru --target en
+cd C:\Tools\deep-translator && call venv\Scripts\activate && python translate.py --text "%GDWORD%" --source ru --target de
+
+x
+C:\Tools\deep-translator\venv\Scripts\activate.bat && C:\Tools\deep-translator\venv\Scripts\python.exe C:\Tools\deep-translator\translate.py --text "%GDWORD%" --source en --target ru
+
+0933
+cmd /c cd C:\Tools\deep-translator\ && .\venv\Scripts\deactivate.bat && .\venv\Scripts\python.exe translate.py --text "%GDWORD%" --source en --target ru
+
+0947
+cmd /c cd C:\Tools\deep-translator\ && .\venv\Scripts\deactivate.bat && .\venv\Scripts\python.exe translate.py --text "%GDWORD%" --source en --target ru
+
+cmd /c cd C:\Tools\deep-translator\ && .\venv\Scripts\deactivate.bat && .\venv\Scripts\python.exe translate.py --text "%GDWORD%" --source de --target ru
+
+cmd /c cd C:\Tools\deep-translator\ && .\venv\Scripts\deactivate.bat && .\venv\Scripts\python.exe translate.py --text "%GDWORD%" --source ru --target en
+
+cmd /c cd C:\Tools\deep-translator\ && .\venv\Scripts\deactivate.bat && .\venv\Scripts\python.exe translate.py --text "%GDWORD%" --source ru --target de
+
+cmd /c "cd /d C:\\Tools\\deep-translator && .\\venv\\Scripts\\activate.bat && .\\venv\\Scripts\\python.exe .\\translate.py --text "%GDWORD%" --source en --target ru"
+
+1009
+cmd /c cd /d C:\\Tools\\deep-translator && .\\venv\\Scripts\\activate.bat && .\\venv\\Scripts\\python.exe .\\translate.py --text "%GDWORD%" --source en --target ru
+Работает.
+
+1010
+Тест. Прямая версия.
+C:\\Tools\\deep-translator\\venv\\Scripts\\activate.bat && C:\\Tools\\deep-translator\\venv\\Scripts\\python.exe C:\\Tools\\deep-translator\\translate.py --text "%GDWORD%" --source en --target ru
+
+Тест. Прямая версия. Без активации.
+C:\\Tools\\deep-translator\\venv\\Scripts\\python.exe C:\\Tools\\deep-translator\\translate.py --text "%GDWORD%" --source en --target ru
+Работает.
+
+1018
+Как это раобтает и без активации
+C:\\Tools\\deep-translator\\venv\\Scripts\\python.exe C:\\Tools\\deep-translator\\translate.py --text "%GDWORD%" --source en --target ru
+?
+Для чего тогда нужна выполнять
+C:\\Tools\\deep-translator\\venv\\Scripts\\activate.bat
+в каких случаях?
+
+В большинстве случаев для выполнения скрипта достаточно указать полный путь к интерпретатору Python из виртуального окружения, как в вашей команде:
+```cmd
+cmd /c "C:\\Tools\\deep-translator\\venv\\Scripts\\python.exe C:\\Tools\\deep-translator\\translate.py --text ""%GDWORD%"" --source en --target ru"
+```
+
+Это гарантирует, что скрипт будет выполняться с использованием пакетов, установленных в виртуальном окружении, и не требует дополнительной активации.
+
+Если у вас есть специфические ситуации, требующие активации виртуального окружения (например, использование дополнительных переменных окружения), тогда можно использовать команду с активацией, как показано выше. Однако в большинстве случаев активация не требуется.

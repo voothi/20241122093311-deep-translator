@@ -1,0 +1,53 @@
+/home/user/deep-translator/venv/bin/python /home/user/deep-translator/translate.py --text %GDWORD% --source en --target ru
+
+
+echo %GDWORD%
+
+
+/home/user/deep-translator/venv/bin/deep-translator --source "ru" --target "en" --text %GDWORD%
+
+
+
+   1  ls 
+    2  ls
+    3  mkdir deep-translator
+    4  dir
+    5  cd deep-translator/
+    6  ls
+    7  python -m venv venv
+    8  py
+    9  python3 -m venv venv
+   10  apt install python3.11-venv
+   11  sudo apt install python3.11-venv
+   12  python3 -m venv venv
+   13  ls
+   14  ./activate
+   15  activate
+   16  virtualenv venv --distribute
+   17  source venv/bin/activate
+   18  ls
+   19  ls venv/bin/
+   20  python --version
+   21  list
+   22  python -m pip install --upgrade pip
+   23  pip install -U deep-translator
+   24  dt -tg de -txt "hello world"
+   25  ps
+   26  pwd
+   27  apt install espeak
+   28  sudo apt install espeak
+   29  sudo apt install festival
+   30  sudo apt search festival
+   31  sudo apt install festival
+   32  /home/user/deep-translator/translate.py --text %GDWORD% --source en --target ru"
+   33  /home/user/deep-translator/translate.py --text %GDWORD% --source en --target ru
+   34  /home/user/deep-translator/translate.py --text test --source en --target ru
+   35  /home/user/deep-translator/translate.py --text "test" --source en --target ru
+   36  /home/user/deep-translator/translate.py --text test --source en --target ru
+   37  /home/user/deep-translator/translate.py 
+   38  /home/user/deep-translator/venv/bin/python /home/user/deep-translator/translate.py 
+   39  /home/user/deep-translator/venv/bin/python /home/user/deep-translator/translate.py --text %GDWORD% --source en --target ru
+   40  history 
+
+
+
