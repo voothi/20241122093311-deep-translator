@@ -1,4 +1,3 @@
-# translate.2.py
 import argparse
 from deep_translator import MyMemoryTranslator
 
