@@ -6,12 +6,20 @@
 A configuration guide and scripts for integrating the `deep-translator` library with GoldenDict-ng. This setup supports multiple translation providers including Google, DeepL, and MyMemory.
 
 ## Table of Contents
-- [Description](#description)
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Installation](#installation)
-- [GoldenDict-ng Configuration](#goldendict-ng-configuration)
-- [License](#license)
+- [Deep-Translator GoldenDict Integration](#deep-translator-goldendict-integration)
+  - [Table of Contents](#table-of-contents)
+  - [Description](#description)
+  - [Features](#features)
+  - [Tech Stack](#tech-stack)
+  - [Installation](#installation)
+    - [1. Environment Setup](#1-environment-setup)
+    - [2. Supported Scripts](#2-supported-scripts)
+  - [GoldenDict-ng Configuration](#goldendict-ng-configuration)
+    - [Google Translate](#google-translate)
+    - [DeepL Translator](#deepl-translator)
+    - [MyMemory Translator](#mymemory-translator)
+  - [Security Note](#security-note)
+  - [License](#license)
 
 ---
 
@@ -111,6 +119,11 @@ To integrate these translators into GoldenDict-ng:
   <!-- Russian -> German -->
   <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.2.py --text &quot;%GDWORD%&quot; --source russian --target german" enabled="1" name="dT-m Ru-De" type="1"/>
 ```
+
+## Security Note
+The scripts provided are designed for local integration. Please be aware of the following:
+- **API Key Visibility**: When using `translate.1.py` for DeepL, the API key is passed as a command-line argument. On multi-user systems, this key may be visible to other users via the process list.
+- **Data Privacy**: Text to be translated is sent to external providers (Google, DeepL, MyMemory). Ensure you comply with your data privacy requirements.
 
 ## License
 MIT
