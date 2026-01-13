@@ -54,26 +54,63 @@ To integrate these translators into GoldenDict-ng:
 2. Go to **Edit** > **Dictionaries** > **Sources** > **Programs**.
 3. Add the following entries as needed.
 
-### Configuration Snippets (XML format)
-*Note: Ensure the paths match your local installation. API keys have been removed.*
+### Google Translate
+*Script: `translate.py` (Free, Unlimited)*
 
 ```xml
-  <!-- Google Translate (En-Ru) -->
-  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.py --text &quot;%GDWORD%&quot; --source en --target ru" enabled="1" icon="" id="ca0a918ab349225644b171a4caf460f5" name="dT-g En-Ru" type="1"/>
-  
-  <!-- DeepL Translate (En-Ru) - Requires API Key -->
-  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.1.py --text &quot;%GDWORD%&quot; --source en --target ru --deepl-api-key &quot;YOUR_DEEPL_API_KEY&quot;" enabled="1" icon="" id="55adc197c0dd34c2d84623beb56ddd9e" name="dT-d En-Ru" type="1"/>
-  
-  <!-- MyMemory Translate (En-Ru) -->
-  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.2.py --text &quot;%GDWORD%&quot; --source english --target russian" enabled="1" icon="" id="c769eac8c7864ae4021a27d4de065a3d" name="dT-m En-Ru" type="1"/>
+  <!-- English -> Russian -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.py --text &quot;%GDWORD%&quot; --source en --target ru" enabled="1" name="dT-g En-Ru" type="1"/>
+  <!-- English -> German -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.py --text &quot;%GDWORD%&quot; --source en --target de" enabled="1" name="dT-g En-De" type="1"/>
+  <!-- English -> Ukrainian -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.py --text &quot;%GDWORD%&quot; --source en --target uk" enabled="1" name="dT-g En-Uk" type="1"/>
+
+  <!-- German -> Russian -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.py --text &quot;%GDWORD%&quot; --source de --target ru" enabled="1" name="dT-g De-Ru" type="1"/>
+  <!-- German -> English -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.py --text &quot;%GDWORD%&quot; --source de --target en" enabled="1" name="dT-g De-En" type="1"/>
+  <!-- German -> Ukrainian -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.py --text &quot;%GDWORD%&quot; --source de --target uk" enabled="1" name="dT-g De-Uk" type="1"/>
+
+  <!-- Russian -> English -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.py --text &quot;%GDWORD%&quot; --source ru --target en" enabled="1" name="dT-g Ru-En" type="1"/>
+  <!-- Russian -> German -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.py --text &quot;%GDWORD%&quot; --source ru --target de" enabled="1" name="dT-g Ru-De" type="1"/>
+  <!-- Russian -> Ukrainian -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.py --text &quot;%GDWORD%&quot; --source ru --target uk" enabled="1" name="dT-g Ru-Uk" type="1"/>
+
+  <!-- Ukrainian -> Russian -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.py --text &quot;%GDWORD%&quot; --source uk --target ru" enabled="1" name="dT-g Uk-Ru" type="1"/>
 ```
 
-### Full Configuration Examples
-| Provider | Source  | Target  | Command Line Pattern                                                                              |
-| :------- | :------ | :------ | :------------------------------------------------------------------------------------------------ |
-| Google   | en      | ru      | `...python.exe ...translate.py --text "%GDWORD%" --source en --target ru`                         |
-| DeepL    | en      | ru      | `...python.exe ...translate.1.py --text "%GDWORD%" --source en --target ru --deepl-api-key "..."` |
-| MyMemory | english | russian | `...python.exe ...translate.2.py --text "%GDWORD%" --source english --target russian`             |
+### DeepL Translator
+*Script: `translate.1.py` (Requires API Key)*
+*Replace `YOUR_DEEPL_API_KEY` with your actual key.*
+
+```xml
+  <!-- English -> Russian -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.1.py --text &quot;%GDWORD%&quot; --source en --target ru --deepl-api-key &quot;YOUR_DEEPL_API_KEY&quot;" enabled="1" name="dT-d En-Ru" type="1"/>
+  <!-- German -> Russian -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.1.py --text &quot;%GDWORD%&quot; --source de --target ru --deepl-api-key &quot;YOUR_DEEPL_API_KEY&quot;" enabled="1" name="dT-d De-Ru" type="1"/>
+  <!-- Russian -> English -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.1.py --text &quot;%GDWORD%&quot; --source ru --target en --deepl-api-key &quot;YOUR_DEEPL_API_KEY&quot;" enabled="1" name="dT-d Ru-En" type="1"/>
+  <!-- Russian -> German -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.1.py --text &quot;%GDWORD%&quot; --source ru --target de --deepl-api-key &quot;YOUR_DEEPL_API_KEY&quot;" enabled="1" name="dT-d Ru-De" type="1"/>
+```
+
+### MyMemory Translator
+*Script: `translate.2.py` (Uses full language names)*
+
+```xml
+  <!-- English -> Russian -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.2.py --text &quot;%GDWORD%&quot; --source english --target russian" enabled="1" name="dT-m En-Ru" type="1"/>
+  <!-- German -> Russian -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.2.py --text &quot;%GDWORD%&quot; --source german --target russian" enabled="1" name="dT-m De-Ru" type="1"/>
+  <!-- Russian -> English -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.2.py --text &quot;%GDWORD%&quot; --source russian --target english" enabled="1" name="dT-m Ru-En" type="1"/>
+  <!-- Russian -> German -->
+  <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate.2.py --text &quot;%GDWORD%&quot; --source russian --target german" enabled="1" name="dT-m Ru-De" type="1"/>
+```
 
 ## License
 MIT
