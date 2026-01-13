@@ -46,8 +46,9 @@ python -m venv venv
 # Activate venv
 .\venv\Scripts\activate
 
-# Install dependencies
-pip install deep-translator==1.11.4
+# Install dependencies (Secure Install)
+# To install the verified version with hash checking:
+pip install deep-translator==1.11.4 --hash=sha256:d635df037e23fa35d12fd42dab72a0b55c9dd19e6292009ee7207e3f30b9e60a
 ```
 
 ### 2. Supported Scripts
@@ -122,6 +123,9 @@ To integrate these translators into GoldenDict-ng:
 
 ## Security Note
 The scripts provided are designed for local integration. Please be aware of the following:
+- **HTTPS vs HTTP**:
+  - **Google & DeepL**: Use **HTTPS** for secure encrypted connections.
+  - **MyMemory**: Uses **HTTP** (`http://api.mymemory.translated.net`). Traffic to this provider is not encrypted and may be visible on port 80.
 - **API Key Visibility**: When using `translate.1.py` for DeepL, the API key is passed as a command-line argument. On multi-user systems, this key may be visible to other users via the process list.
 - **Data Privacy**: Text to be translated is sent to external providers (Google, DeepL, MyMemory). Ensure you comply with your data privacy requirements.
 
