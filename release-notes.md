@@ -1,5 +1,11 @@
 # Release Notes
 
+## v1.0.1 (2026-02-09)
+**Fix DeepL Authorization Error**
+
+- **Fix**: Patched `deep-translator` library (`deepl.py`) to support new DeepL API requirements (POST requests and header-based authentication).
+- **RFC**: Created RFC `20260209093752-update-deepl-translator.md` detailing the fix.
+
 ## v1.0.0 (2026-01-13)
 **Initial Documentation Release**
 

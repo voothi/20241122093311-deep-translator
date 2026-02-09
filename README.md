@@ -1,6 +1,6 @@
 # Deep-Translator GoldenDict Integration
 
-[![Version](https://img.shields.io/badge/version-v1.0.0-blue)](https://github.com/voothi/20241122093311-deep-translator)
+[![Version](https://img.shields.io/badge/version-v1.0.1-blue)](https://github.com/voothi/20241122093311-deep-translator)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A configuration guide and scripts for integrating the `deep-translator` library with GoldenDict-ng. This setup supports multiple translation providers including Google, DeepL, and MyMemory.
