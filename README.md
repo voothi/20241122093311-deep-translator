@@ -14,6 +14,7 @@ A configuration guide and scripts for integrating the `deep-translator` library 
   - [Installation](#installation)
     - [1. Environment Setup](#1-environment-setup)
     - [2. Supported Scripts](#2-supported-scripts)
+    - [3. Developer Testing](#3-developer-testing)
   - [GoldenDict-ng Configuration](#goldendict-ng-configuration)
     - [Google Translate](#google-translate)
     - [DeepL Translator](#deepl-translator)
@@ -55,6 +56,21 @@ pip install deep-translator==1.11.4 --hash=sha256:d635df037e23fa35d12fd42dab72a0
 - `translate_google.py`: Uses **Google Translator** (Free/Unlimited).
 - `translate_deepl.py`: Uses **DeepL Translator** (Requires `--deepl-api-key`).
 - `translate_mymemory.py`: Uses **MyMemory Translator**.
+
+### 3. Developer Testing
+If you are modifying the `deep-translator` library and want to test changes using a local fork:
+
+1.  Create a `config.json` file in the root directory:
+    ```json
+    {
+        "use_local_deep_translator_fork": true,
+        "local_deep_translator_fork_path": "path/to/your/fork"
+    }
+    ```
+2.  Run the scripts with the `--use-local-fork` flag:
+    ```powershell
+    python translate_google.py --text "Test" --source en --target fr --use-local-fork
+    ```
 
 ## GoldenDict-ng Configuration
 

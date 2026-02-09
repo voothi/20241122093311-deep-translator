@@ -4,6 +4,7 @@
 **Fix DeepL Authorization Error**
 
 - **Fix**: Patched `deep-translator` library (`deepl.py`) to support new DeepL API requirements (POST requests and header-based authentication).
+- **Feature**: Added `--use-local-fork` flag and `config.json` support to allow testing with a local copy of the library.
 - **RFC**: Created RFC `20260209093752-update-deepl-translator.md` detailing the fix.
 
 ## v1.0.0 (2026-01-13)

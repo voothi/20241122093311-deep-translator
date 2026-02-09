@@ -47,5 +47,8 @@ DeepL API documentation confirms the deprecation of GET requests for translation
     # ...
     ```
 
-3.  Updated `release-notes.md` to v1.0.1.
-4.  Updated `README.md` version badge.
+
+5.  Added developer testing support:
+    -   Created `config.json` with `use_local_deep_translator_fork` and `local_deep_translator_fork_path` settings options.
+    -   Updated scripts `translate_deepl.py`, `translate_google.py`, `translate_mymemory.py` to accept a `--use-local-fork` flag.
+    -   Using the flag allows loading the library from a local path specified in config, facilitating testing of the manual fork without affecting default package usage.
