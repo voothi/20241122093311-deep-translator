@@ -63,7 +63,6 @@ If you are modifying the `deep-translator` library and want to test changes usin
 1.  Create a `config.json` file in the root directory:
     ```json
     {
-        "use_local_deep_translator_fork": true,
         "local_deep_translator_fork_path": "path/to/your/fork"
     }
     ```
