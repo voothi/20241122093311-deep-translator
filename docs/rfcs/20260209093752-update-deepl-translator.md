@@ -23,5 +23,29 @@ DeepL API documentation confirms the deprecation of GET requests for translation
     -   Use `requests.post` instead of `requests.get`.
     -   Pass parameters in `data` (form-data) instead of query params.
     -   Pass API key in `Authorization` header (`DeepL-Auth-Key <key>`) instead of query/body param.
+
+    **Code Change:**
+    ```python
+    # deep_translator/deepl.py
+
+    # ... inside translate method ...
+            # Create the request parameters.
+            translate_endpoint = "translate"
+            headers = {
+                "Authorization": f"DeepL-Auth-Key {self.api_key}"
+            }
+            data = {
+                "source_lang": self._source,
+                "target_lang": self._target,
+                "text": text,
+            }
+            # Do the request and check the connection.
+            try:
+                response = requests.post(
+                    self._base_url + translate_endpoint, data=data, headers=headers
+                )
+    # ...
+    ```
+
 3.  Updated `release-notes.md` to v1.0.1.
 4.  Updated `README.md` version badge.
