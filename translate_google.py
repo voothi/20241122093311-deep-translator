@@ -18,8 +18,9 @@ if args.use_local_fork:
         try:
             with open(config_path, 'r') as f:
                 config = json.load(f)
-                fork_path = config.get('local_deep_translator_fork_path', '20260209094544-deep-translator')
-                sys.path.insert(0, os.path.join(os.path.dirname(__file__), fork_path))
+                fork_path = config.get('local_deep_translator_fork_path')
+                if fork_path:
+                    sys.path.insert(0, os.path.join(os.path.dirname(__file__), fork_path))
         except Exception:
             pass
 
