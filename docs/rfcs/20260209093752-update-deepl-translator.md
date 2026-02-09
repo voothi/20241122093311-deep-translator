@@ -52,3 +52,8 @@ DeepL API documentation confirms the deprecation of GET requests for translation
     -   Created `config.json` with `local_deep_translator_fork_path` settings options.
     -   Updated scripts `translate_deepl.py`, `translate_google.py`, `translate_mymemory.py` to accept a `--use-local-fork` flag.
     -   Using the flag allows loading the library from a local path specified in config, facilitating testing of the manual fork without affecting default package usage.
+
+6.  Improved Error Handling:
+    -   Wrapped translation logic in `try...except` blocks in all scripts.
+    -   Catches exceptions (like `AuthorizationException`) and prints user-friendly messages to `stdout` instead of throwing a stack trace.
+    -   Ensures the script returns exit code 0 to prevent GoldenDict from showing standard error popups.
