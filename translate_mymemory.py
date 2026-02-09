@@ -27,7 +27,10 @@ if __name__ == "__main__":
 
     from deep_translator import MyMemoryTranslator
 
-    translator = MyMemoryTranslator(source=args.source, target=args.target)
-    result = translator.translate(args.text)
-    print(result)
+    try:
+        translator = MyMemoryTranslator(source=args.source, target=args.target)
+        result = translator.translate(args.text)
+        print(result)
+    except Exception as e:
+        print(f"Error: {e}")
     print(result)

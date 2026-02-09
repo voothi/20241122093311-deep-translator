@@ -26,6 +26,9 @@ if args.use_local_fork:
 
 from deep_translator import GoogleTranslator
 
-translator = GoogleTranslator(source=args.source, target=args.target)
-result = translator.translate(args.text)
-print(result)
+try:
+    translator = GoogleTranslator(source=args.source, target=args.target)
+    result = translator.translate(args.text)
+    print(result)
+except Exception as e:
+    print(f"Error: {e}")

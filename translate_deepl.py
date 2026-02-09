@@ -27,6 +27,9 @@ if args.use_local_fork:
 
 from deep_translator import DeeplTranslator
 
-translator = DeeplTranslator(api_key=args.deepl_api_key, source=args.source, target=args.target)
-result = translator.translate(args.text)
-print(result)
+try:
+    translator = DeeplTranslator(api_key=args.deepl_api_key, source=args.source, target=args.target)
+    result = translator.translate(args.text)
+    print(result)
+except Exception as e:
+    print(f"Error: {e}")
