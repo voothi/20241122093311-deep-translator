@@ -46,8 +46,15 @@ def test_wrapper_config_precedence(mock_translator_cls):
         "maxTotalTime": 120
     }
     
+    import io
+    real_open = open
+    def mock_open_side_effect(file, *args, **kwargs):
+        if "config.json" in str(file):
+            return io.StringIO(json.dumps(config_data))
+        return real_open(file, *args, **kwargs)
+    
     with patch("os.path.exists", return_value=True):
-        with patch("builtins.open", mock_open(read_data=json.dumps(config_data))):
+        with patch("builtins.open", side_effect=mock_open_side_effect):
             with patch.object(sys, "argv", test_argv):
                 runpy.run_path("translate_google.py", run_name="__main__")
 
