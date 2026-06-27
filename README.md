@@ -186,16 +186,14 @@ The scripts provided are designed for local integration. Please be aware of the 
 - **API Key Visibility**: When using `translate_deepl.py` for DeepL, the API key is passed as a command-line argument. On multi-user systems, this key may be visible to other users via the process list.
 - **Data Privacy**: Text to be translated is sent to external providers (Google, DeepL, MyMemory). Ensure you comply with your data privacy requirements.
 
-## Future Follow-ups
+## Transport & Cold Start
 
-### Stdlib-only Request Layer Implementation
+For optimal performance in interactive environments (like GoldenDict or AutoHotkey hotkeys), the local fork of `deep-translator` uses a stdlib-only request transport layer:
+- **Zero-Dependency Request Logic**: The HTTP request routing in `google.py`, `mymemory.py`, and `deepl.py` uses Python's built-in `urllib.request`, dropping the `requests` library dependency for these engines.
+- **Stdlib-backed Resilience Layer**: `net.py` uses `urllib` instead of `requests.Session` while preserving the full retry, exponential backoff, and deadline contract.
+- **Lazy Registry**: `deep_translator` imports engine classes lazily so that importing a single engine does not trigger eager loading of the other 12 engines or the `requests` dependency.
 
-For optimal performance in interactive environments (like GoldenDict or AutoHotkey hotkeys), it is recommended to implement a stdlib-only request layer to replace the `requests` library dependency:
-- **Zero-Dependency Request Logic**: Rewrite the HTTP request routing in `google.py`, `mymemory.py`, and `deepl.py` to use Python's built-in `urllib.request`.
-- **Stdlib-backed Resilience Layer**: Re-implement `net.py` using `urllib` instead of `requests.Session`.
-- **Lazy Init**: Ensure that `deep_translator/__init__.py` imports engine classes lazily.
-
-This change avoids the startup import cost of the `requests` library (~170ms faster), reducing the wrapper scripts' cold-start time toward ~350ms for near-instantaneous translation responses.
+This transport swap avoids the startup import cost of the `requests` library, bringing the wrapper scripts' cold-start time down to ~350ms for near-instantaneous translation responses.
 
 ## License
 MIT
