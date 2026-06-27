@@ -195,5 +195,9 @@ For optimal performance in interactive environments (like GoldenDict or AutoHotk
 
 This transport swap avoids the startup import cost of the `requests` library, bringing the wrapper scripts' cold-start time down to ~350ms for near-instantaneous translation responses.
 
+### Future Improvements
+1. **Convert remaining engines to urllib**: The remaining 10 translation engines in the fork still import the `requests` library. Converting them to use `urllib` would allow removing the `requests` dependency entirely from the fork.
+2. **urllib3 keep-alive connection pooling**: For high-volume programmatic/batch translation routes (e.g., `translate_batch`), replacing `urllib.request` with `urllib3` would restore keep-alive connection pooling while keeping import time cheap and avoid the overhead of opening a new TCP/TLS connection per request.
+
 ## License
 MIT
