@@ -1,3 +1,9 @@
 {
-    "local_deep_translator_fork_path": "20260209094544-deep-translator"
+    "local_deep_translator_fork_path": "20260209094544-deep-translator",
+    "netTimeout": 5,
+    "maxRetries": 2,
+    "retryBackoff": 1.0,
+    "maxTotalTime": null,
+    "retryDiagnostics": true,
+    "echoErrorsToStdout": false
 }

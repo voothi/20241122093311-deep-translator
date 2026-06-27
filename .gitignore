@@ -100,3 +100,4 @@ ref/
 .kilocode/
 openspec/
 AGENTS.md
+__pycache__/

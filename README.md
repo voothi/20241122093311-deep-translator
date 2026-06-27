@@ -136,6 +136,48 @@ To integrate these translators into GoldenDict-ng:
   <program commandLine="U:\voothi\20241122093311-deep-translator\venv\Scripts\python.exe U:\voothi\20241122093311-deep-translator\translate_mymemory.py --text &quot;%GDWORD%&quot; --source russian --target german" enabled="1" name="dT-m Ru-De" type="1"/>
 ```
 
+## Network Resilience Configuration
+
+The scripts include a network resilience layer that automatically handles flaky connections, timeouts, and transient errors (like 429 and 5xx). By default, the wrapper uses fail-fast settings optimized for interactive usage:
+- **Default Timeout**: 5 seconds
+- **Default Retries**: 2 (makes 3 attempts total)
+- **Exponential Backoff**: Base of 1.0s with 1.0s jitter, capped at 30.0s.
+
+### Configurable Keys (`config.json`)
+
+You can customize these defaults in `config.json` using the following optional keys:
+- `netTimeout`: Float representing the timeout in seconds (default `5` for wrapper).
+- `maxRetries`: Integer for the maximum retry count. Set to `-1` for endless (default `2`).
+- `retryBackoff`: Float for the exponential backoff base in seconds (default `1.0`).
+- `maxTotalTime`: Float for the overall wall-clock deadline limit in seconds (default `null`).
+- `retryDiagnostics`: Boolean to enable/disable retry diagnostics printed to stderr (default `true`).
+- `echoErrorsToStdout`: Boolean to output a clean one-line error to stdout on failure (default `false`).
+
+These can also be overridden per command invocation using:
+- `--timeout <seconds>`
+- `--retries <attempts>`
+- `--retry-backoff <seconds>`
+- `--max-total-time <seconds>`
+- `--quiet` (disables retry diagnostics on stderr)
+- `--plain` (enables one-line errors on stdout)
+
+---
+
+## Consumer Notes & Integration
+
+### GoldenDict-ng (Programs)
+GoldenDict captures only `stdout` for rendering the article and discards `stderr`. If a network failure occurs, the program exits non-zero and GoldenDict shows a blank page. 
+To display a human-readable error reason in GoldenDict instead of a blank page, append the `--plain` flag to your command (or set `"echoErrorsToStdout": true` in `config.json`). This prints a single-line error message directly to `stdout` only on failure.
+
+### AutoHotkey v2 (`translate-selection.ahk`)
+The AHK integration runs the translation script and captures stdout/stderr. To prevent retry diagnostics on `stderr` from polluting your pasted text:
+1. **With No AHK Edit**: Pass `--quiet` as a command-line flag or set `"retryDiagnostics": false` in `config.json`. This suppresses retry diagnostics on `stderr`, ensuring only the final translation is written to stdout.
+2. **Stream-Separation (Recommended)**: Update `translate-selection.ahk` to separate the streams:
+   - Change redirections from `> "outFile" 2>&1` to `> "outFile" 2> "errFile"`.
+   - Read `outFile` for pasting on success (exit code 0), and read `errFile` for the error MsgBox on non-zero exit. This allows you to keep full retry diagnostics on `stderr` without risking pasting them into your document.
+
+---
+
 ## Security Note
 The scripts provided are designed for local integration. Please be aware of the following:
 - **HTTPS vs HTTP**:
