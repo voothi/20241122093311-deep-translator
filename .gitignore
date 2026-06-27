@@ -96,3 +96,7 @@ venv/
 ref/
 
 20260209094544-deep-translator/
+.agent/
+.kilocode/
+openspec/
+AGENTS.md
