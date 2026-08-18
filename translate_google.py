@@ -17,6 +17,8 @@ def main():
     parser.add_argument('--max-total-time', type=float, help='Max total wall-clock time in seconds')
     parser.add_argument('--quiet', action='store_true', help='Suppress retry diagnostics on stderr')
     parser.add_argument('--plain', action='store_true', help='Echo one-line error to stdout on failure')
+    parser.add_argument('--zid', type=str, default=None, help='Session ZID')
+    parser.add_argument('--trace-id', type=str, default=None, help='Trace correlation ID')
 
     args = parser.parse_args()
 
@@ -108,11 +110,33 @@ def main():
         sys.stderr.write("Translation interrupted by user.\n")
         sys.exit(130)
     except Exception as e:
-        err_msg = str(e)
-        sys.stderr.write(f"Error: {err_msg}\n")
+        err_str = str(e)
+        code = "ERR_TRANSLATION_FAILED"
+        details = {"raw_error": err_str}
+        if "429" in err_str or "too many requests" in err_str.lower() or "rate limit" in err_str.lower():
+            code = "ERR_GOOGLE_RATE_LIMIT"
+            details["http_code"] = 429
+            message = "Google Translate rate limit exceeded"
+        elif any(term in err_str.lower() for term in ["timeout", "timed out", "connection", "unreachable", "name resolution", "dns"]):
+            code = "ERR_NETWORK_UNREACHABLE"
+            message = f"Google Translate network unreachable: {err_str}"
+        else:
+            message = f"Google translation failed: {err_str}"
+
+        envelope = {
+            "status": "error",
+            "zid": getattr(args, 'zid', None),
+            "trace_id": getattr(args, 'trace_id', None),
+            "code": code,
+            "message": message,
+            "provider": "google",
+            "details": details
+        }
+        envelope_json = json.dumps(envelope)
+        sys.stderr.write(envelope_json + "\n")
         if echo_errors_to_stdout:
-            sys.stdout.write(f"Error: {err_msg}\n")
-        sys.exit(2)
+            sys.stdout.write(envelope_json + "\n")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
