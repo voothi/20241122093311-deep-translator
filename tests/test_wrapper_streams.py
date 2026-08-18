@@ -47,6 +47,8 @@ def test_quiet_suppresses_stderr(mock_translator_cls):
         on_retry(1, 1.5, "Timeout")
         mock_stderr.write.assert_not_called()
 
+import json
+
 @patch("deep_translator.GoogleTranslator")
 def test_plain_on_failure(mock_translator_cls):
     test_argv = [
@@ -63,11 +65,22 @@ def test_plain_on_failure(mock_translator_cls):
     with patch("sys.stdout") as mock_stdout:
         with patch("sys.stderr") as mock_stderr:
             with patch.object(sys, "argv", test_argv):
-                with pytest.raises(SystemExit):
+                with pytest.raises(SystemExit) as excinfo:
                     runpy.run_path("translate_google.py", run_name="__main__")
-            
-            mock_stdout.write.assert_any_call("Error: Outage\n")
-            mock_stderr.write.assert_any_call("Error: Outage\n")
+            assert excinfo.value.code == 1
+
+            stdout_calls = [call[0][0] for call in mock_stdout.write.call_args_list if call[0]]
+            stderr_calls = [call[0][0] for call in mock_stderr.write.call_args_list if call[0]]
+
+            stdout_envelope = json.loads("".join(stdout_calls).strip())
+            assert stdout_envelope["status"] == "error"
+            assert stdout_envelope["code"] == "ERR_TRANSLATION_FAILED"
+            assert "Outage" in stdout_envelope["message"]
+
+            stderr_envelope = json.loads("".join(stderr_calls).strip())
+            assert stderr_envelope["status"] == "error"
+            assert stderr_envelope["code"] == "ERR_TRANSLATION_FAILED"
+            assert "Outage" in stderr_envelope["message"]
 
 @patch("deep_translator.GoogleTranslator")
 def test_default_failure_keeps_stdout_empty(mock_translator_cls):
@@ -84,10 +97,14 @@ def test_default_failure_keeps_stdout_empty(mock_translator_cls):
     with patch("sys.stdout") as mock_stdout:
         with patch("sys.stderr") as mock_stderr:
             with patch.object(sys, "argv", test_argv):
-                with pytest.raises(SystemExit):
+                with pytest.raises(SystemExit) as excinfo:
                     runpy.run_path("translate_google.py", run_name="__main__")
-            
-            # stdout must not have "Error: Outage"
-            for call in mock_stdout.write.call_args_list:
-                assert "Error" not in call[0][0]
-            mock_stderr.write.assert_any_call("Error: Outage\n")
+            assert excinfo.value.code == 1
+
+            assert mock_stdout.write.call_count == 0
+
+            stderr_calls = [call[0][0] for call in mock_stderr.write.call_args_list if call[0]]
+            stderr_envelope = json.loads("".join(stderr_calls).strip())
+            assert stderr_envelope["status"] == "error"
+            assert stderr_envelope["code"] == "ERR_TRANSLATION_FAILED"
+            assert "Outage" in stderr_envelope["message"]

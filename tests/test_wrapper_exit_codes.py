@@ -20,7 +20,7 @@ def test_exit_0_success(mock_translator_cls):
         assert res is not None
 
 @patch("deep_translator.GoogleTranslator")
-def test_exit_2_network_exhaustion(mock_translator_cls):
+def test_exit_1_network_exhaustion(mock_translator_cls):
     test_argv = [
         "translate_google.py",
         "--text", "hello",
@@ -34,7 +34,7 @@ def test_exit_2_network_exhaustion(mock_translator_cls):
     with patch.object(sys, "argv", test_argv):
         with pytest.raises(SystemExit) as excinfo:
             runpy.run_path("translate_google.py", run_name="__main__")
-        assert excinfo.value.code == 2
+        assert excinfo.value.code == 1
 
 @patch("deep_translator.GoogleTranslator")
 def test_exit_130_keyboard_interrupt(mock_translator_cls):
