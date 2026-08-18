@@ -2,6 +2,23 @@ import argparse
 import sys
 import os
 import json
+import requests
+from requests.adapters import HTTPAdapter
+
+_global_session = None
+
+def get_session():
+    session = requests.Session()
+    adapter = HTTPAdapter(pool_connections=10, pool_maxsize=10, max_retries=3)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
+def get_global_session():
+    global _global_session
+    if _global_session is None:
+        _global_session = get_session()
+    return _global_session
 
 def main():
     parser = argparse.ArgumentParser(description="Translate text using DeepL.")
@@ -90,19 +107,26 @@ def main():
         if retry_diagnostics:
             sys.stderr.write(f"Attempt {attempt} failed: {reason}. Retrying in {delay:.2f}s...\n")
 
+    session = get_global_session()
+
     translator_kwargs = {
         "timeout": timeout,
         "max_retries": max_retries,
         "retry_backoff": retry_backoff,
         "max_total_time": max_total_time,
         "on_retry": on_retry_cb,
+        "session": session,
     }
 
     try:
         try:
             translator = DeeplTranslator(api_key=args.deepl_api_key, source=args.source, target=args.target, **translator_kwargs)
         except TypeError:
-            translator = DeeplTranslator(api_key=args.deepl_api_key, source=args.source, target=args.target)
+            try:
+                kwargs_no_session = {k: v for k, v in translator_kwargs.items() if k != "session"}
+                translator = DeeplTranslator(api_key=args.deepl_api_key, source=args.source, target=args.target, **kwargs_no_session)
+            except TypeError:
+                translator = DeeplTranslator(api_key=args.deepl_api_key, source=args.source, target=args.target)
 
         result = translator.translate(args.text)
         print(result)
