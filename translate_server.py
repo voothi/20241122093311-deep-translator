@@ -339,7 +339,13 @@ class TranslationRequestHandler(BaseHTTPRequestHandler):
                 break
 
         if exe_path:
-            cmd = [str(exe_path), "-f", source, "-t", target]
+            if sys.platform == "win32" and not exe_path.name.lower().endswith(".exe"):
+                python_exe = exe_path.parent / "python.exe"
+                if not python_exe.exists():
+                    python_exe = Path(sys.executable)
+                cmd = [str(python_exe), str(exe_path), "-f", source, "-t", target]
+            else:
+                cmd = [str(exe_path), "-f", source, "-t", target]
             try:
                 res = subprocess.run(cmd, input=text, capture_output=True, text=True, encoding='utf-8', timeout=60)
                 if res.returncode == 0:
