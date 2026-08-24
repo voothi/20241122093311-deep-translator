@@ -146,7 +146,6 @@ def main():
             message = f"Google Translate network unreachable: {err_str}"
         else:
             message = f"Google translation failed: {err_str}"
-
         envelope = {
             "status": "error",
             "zid": getattr(args, 'zid', None),
@@ -156,7 +155,7 @@ def main():
             "provider": "google",
             "details": details
         }
-        envelope_json = json.dumps(envelope)
+        envelope_json = json.dumps(envelope, ensure_ascii=False)
         sys.stderr.write(envelope_json + "\n")
         if echo_errors_to_stdout:
             sys.stdout.write(envelope_json + "\n")

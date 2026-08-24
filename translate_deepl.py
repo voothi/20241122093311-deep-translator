@@ -161,7 +161,7 @@ def main():
             "provider": "deepl",
             "details": details
         }
-        envelope_json = json.dumps(envelope)
+        envelope_json = json.dumps(envelope, ensure_ascii=False)
         sys.stderr.write(envelope_json + "\n")
         if echo_errors_to_stdout:
             sys.stdout.write(envelope_json + "\n")
