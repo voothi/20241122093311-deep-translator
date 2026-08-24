@@ -9,7 +9,9 @@ import threading
 import subprocess
 from pathlib import Path
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-from typing import Optional, Dict, Any
+from collections import OrderedDict
+from contextlib import contextmanager
+from typing import Optional, Dict, Any, Tuple
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -51,14 +53,151 @@ def setup_local_fork(config: dict):
             sys.path.insert(0, full_fork_path)
 
 
+class ProviderRateLimiter:
+    """
+    Thread-safe concurrency and request pacing manager per provider.
+    Enforces concurrency gating via semaphores and pacing delays.
+    """
+    def __init__(self, google_concurrency: int = 1, google_delay: float = 0.35,
+                 deepl_concurrency: int = 5, argos_concurrency: int = 2):
+        self.google_concurrency = max(1, int(google_concurrency))
+        self.google_delay = max(0.0, float(google_delay))
+        self.deepl_concurrency = max(1, int(deepl_concurrency))
+        self.argos_concurrency = max(1, int(argos_concurrency))
+
+        self._semaphores = {
+            'google': threading.BoundedSemaphore(self.google_concurrency),
+            'deepl': threading.BoundedSemaphore(self.deepl_concurrency),
+            'argos': threading.BoundedSemaphore(self.argos_concurrency)
+        }
+        self._last_request_time = {
+            'google': 0.0,
+            'deepl': 0.0,
+            'argos': 0.0
+        }
+        self._pacing_lock = threading.Lock()
+
+    def acquire(self, provider: str):
+        sem = self._semaphores.get(provider)
+        if sem:
+            sem.acquire()
+        if provider == 'google' and self.google_delay > 0:
+            with self._pacing_lock:
+                now = time.time()
+                elapsed = now - self._last_request_time['google']
+                wait_time = self.google_delay - elapsed
+                if wait_time > 0:
+                    time.sleep(wait_time)
+                self._last_request_time['google'] = time.time()
+
+    def release(self, provider: str):
+        try:
+            if provider == 'google':
+                with self._pacing_lock:
+                    self._last_request_time['google'] = time.time()
+        finally:
+            sem = self._semaphores.get(provider)
+            if sem:
+                sem.release()
+
+    @contextmanager
+    def limit(self, provider: str):
+        self.acquire(provider)
+        try:
+            yield
+        finally:
+            self.release(provider)
+
+    def stats(self) -> dict:
+        return {
+            "google_concurrency": self.google_concurrency,
+            "google_delay": self.google_delay,
+            "deepl_concurrency": self.deepl_concurrency,
+            "argos_concurrency": self.argos_concurrency
+        }
+
+
+class TranslationCache:
+    """
+    Thread-safe in-memory LRU cache storing translations keyed by (source, target, provider, text).
+    """
+    def __init__(self, max_size: int = 10000, enabled: bool = True):
+        self.max_size = max(0, int(max_size))
+        self.enabled = bool(enabled)
+        self._cache = OrderedDict()
+        self._lock = threading.Lock()
+        self.hits = 0
+        self.misses = 0
+
+    def _make_key(self, source: str, target: str, provider: str, text: str) -> tuple:
+        return (source, target, provider.lower(), text)
+
+    def get(self, source: str, target: str, provider: str, text: str) -> Optional[str]:
+        if not self.enabled or self.max_size <= 0:
+            return None
+        key = self._make_key(source, target, provider, text)
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+                self.hits += 1
+                return self._cache[key]
+            self.misses += 1
+            return None
+
+    def set(self, source: str, target: str, provider: str, text: str, translation: str):
+        if not self.enabled or self.max_size <= 0 or translation is None:
+            return
+        key = self._make_key(source, target, provider, text)
+        with self._lock:
+            self._cache[key] = translation
+            self._cache.move_to_end(key)
+            if len(self._cache) > self.max_size:
+                self._cache.popitem(last=False)
+
+    def stats(self) -> dict:
+        with self._lock:
+            return {
+                "enabled": self.enabled,
+                "size": len(self._cache),
+                "max_size": self.max_size,
+                "hits": self.hits,
+                "misses": self.misses
+            }
+
+    def clear(self):
+        with self._lock:
+            self._cache.clear()
+            self.hits = 0
+            self.misses = 0
+
+
+_default_rate_limiter = ProviderRateLimiter()
+_default_cache = TranslationCache()
+
+
 class TranslationHTTPServer(ThreadingHTTPServer):
     allow_reuse_address = False
     disable_nagle_algorithm = True
 
-    def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True, config=None):
+    def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True, config=None,
+                 google_delay: float = 0.35, google_concurrency: int = 1,
+                 deepl_concurrency: int = 5, argos_concurrency: int = 2,
+                 cache_size: int = 10000, enable_cache: bool = True,
+                 auto_failover: bool = False):
         self.seq_lock = threading.Lock()
         self.seq_counter = 0
         self.config = config or {}
+        self.rate_limiter = ProviderRateLimiter(
+            google_concurrency=google_concurrency,
+            google_delay=google_delay,
+            deepl_concurrency=deepl_concurrency,
+            argos_concurrency=argos_concurrency
+        )
+        self.cache = TranslationCache(
+            max_size=cache_size,
+            enabled=enable_cache
+        )
+        self.auto_failover = auto_failover
         super().__init__(server_address, RequestHandlerClass, bind_and_activate)
 
 
@@ -118,11 +257,17 @@ class TranslationRequestHandler(BaseHTTPRequestHandler):
                 "deepl": "available",
                 "argos": "available"
             }
+            rate_limiter = getattr(self.server, 'rate_limiter', _default_rate_limiter)
+            cache = getattr(self.server, 'cache', _default_cache)
+            auto_failover = getattr(self.server, 'auto_failover', False)
             resp = {
                 "status": "healthy",
                 "service": "translation_server",
                 "port": self.server.server_address[1],
                 "providers": providers,
+                "rate_limiter": rate_limiter.stats(),
+                "cache": cache.stats(),
+                "auto_failover": auto_failover,
                 "active_threads": threading.active_count()
             }
             self._send_json(200, resp)
@@ -136,6 +281,12 @@ class TranslationRequestHandler(BaseHTTPRequestHandler):
         if parsed_path in ('/shutdown', '/api/v1/shutdown'):
             self._send_json(200, {"status": "shutting_down", "message": "Server is shutting down..."})
             threading.Thread(target=self.server.shutdown, daemon=True).start()
+            return
+
+        if parsed_path in ('/cache/clear', '/api/v1/cache/clear'):
+            cache = getattr(self.server, 'cache', _default_cache)
+            cache.clear()
+            self._send_json(200, {"status": "success", "message": "Cache cleared"})
             return
 
         if parsed_path in ('/translate', '/api/v1/translate'):
@@ -158,6 +309,7 @@ class TranslationRequestHandler(BaseHTTPRequestHandler):
             target = req.get('target')
             provider = (req.get('provider') or 'google').lower()
             deepl_api_key = req.get('deepl_api_key')
+            req_failover = req.get('auto_failover')
 
             if text is None:
                 self._send_error_json(400, "MISSING_FIELD", "Missing required field: 'text'", provider=provider, zid=zid, trace_id=trace_id)
@@ -176,23 +328,67 @@ class TranslationRequestHandler(BaseHTTPRequestHandler):
                     "trace_id": trace_id,
                     "translated_text": "",
                     "provider": provider,
+                    "cached": False,
                     "duration_ms": 0.0
                 })
                 return
 
+            cache = getattr(self.server, 'cache', _default_cache)
+            rate_limiter = getattr(self.server, 'rate_limiter', _default_rate_limiter)
+            auto_failover = req_failover if req_failover is not None else getattr(self.server, 'auto_failover', False)
+
             t0 = time.perf_counter()
-            try:
-                translated_text = self._execute_translation(text, source, target, provider, deepl_api_key)
+
+            # 1. Fast path: check in-memory cache
+            cached_text = cache.get(source, target, provider, text)
+            if cached_text is not None:
                 duration_ms = round((time.perf_counter() - t0) * 1000, 2)
-                logger.info(f"[{zid or 'NO_ZID'}] [{trace_id or 'NO_TRACE'}] provider={provider} chars={len(text)} duration_ms={duration_ms}")
+                logger.info(f"[{zid or 'NO_ZID'}] [{trace_id or 'NO_TRACE'}] cache_hit provider={provider} chars={len(text)} duration_ms={duration_ms}")
                 self._send_json(200, {
                     "status": "success",
                     "zid": zid,
                     "trace_id": trace_id,
-                    "translated_text": translated_text,
+                    "translated_text": cached_text,
                     "provider": provider,
+                    "cached": True,
                     "duration_ms": duration_ms
                 })
+                return
+
+            # 2. Execute translation with rate limiting, adaptive backoff, and failover
+            try:
+                translated_text, final_provider, failed_over = self._translate_with_retry_and_failover(
+                    text=text,
+                    source=source,
+                    target=target,
+                    provider=provider,
+                    deepl_api_key=deepl_api_key,
+                    rate_limiter=rate_limiter,
+                    auto_failover=auto_failover
+                )
+                duration_ms = round((time.perf_counter() - t0) * 1000, 2)
+
+                # Store in cache under requested provider and final provider
+                cache.set(source, target, provider, text, translated_text)
+                if failed_over:
+                    cache.set(source, target, final_provider, text, translated_text)
+
+                logger.info(f"[{zid or 'NO_ZID'}] [{trace_id or 'NO_TRACE'}] provider={final_provider}{' (failover from ' + provider + ')' if failed_over else ''} chars={len(text)} duration_ms={duration_ms}")
+
+                resp_payload = {
+                    "status": "success",
+                    "zid": zid,
+                    "trace_id": trace_id,
+                    "translated_text": translated_text,
+                    "provider": final_provider,
+                    "cached": False,
+                    "duration_ms": duration_ms
+                }
+                if failed_over:
+                    resp_payload["failover_from"] = provider
+                    resp_payload["failed_over"] = True
+
+                self._send_json(200, resp_payload)
             except TranslationServerException as tse:
                 duration_ms = round((time.perf_counter() - t0) * 1000, 2)
                 logger.warning(f"[{zid or 'NO_ZID'}] [{trace_id or 'NO_TRACE'}] provider={provider} failed: {tse.code} ({tse.message}) in {duration_ms}ms")
@@ -220,6 +416,67 @@ class TranslationRequestHandler(BaseHTTPRequestHandler):
             return
 
         self._send_error_json(404, "ERR_NOT_FOUND", f"Endpoint '{self.path}' not found")
+
+    def _translate_with_retry_and_failover(self, text: str, source: str, target: str, provider: str,
+                                          deepl_api_key: Optional[str], rate_limiter: ProviderRateLimiter,
+                                          auto_failover: bool) -> Tuple[str, str, bool]:
+        if provider not in ('google', 'deepl', 'argos', 'mock'):
+            raise TranslationServerException(
+                status_code=400,
+                code="ERR_UNSUPPORTED_PROVIDER",
+                message=f"Unsupported translation provider: '{provider}'"
+            )
+
+        providers_to_try = [provider]
+        if auto_failover:
+            if provider == 'google':
+                has_deepl = bool(deepl_api_key or os.environ.get("DEEPL_API_KEY"))
+                if has_deepl:
+                    providers_to_try.append('deepl')
+                providers_to_try.append('argos')
+            elif provider == 'deepl':
+                providers_to_try.append('google')
+                providers_to_try.append('argos')
+
+        last_exception = None
+        for current_provider in providers_to_try:
+            # If auto_failover is enabled, perform retries with backoff on Google rate limit/transient
+            max_attempts = 3 if (auto_failover and current_provider == 'google') else 1
+            for attempt in range(max_attempts):
+                try:
+                    with rate_limiter.limit(current_provider):
+                        translated = self._execute_translation(text, source, target, current_provider, deepl_api_key)
+                        return translated, current_provider, (current_provider != provider)
+                except TranslationServerException as tse:
+                    last_exception = tse
+                    # Auth or bad request errors should not failover or retry
+                    if tse.code in ("ERR_DEEPL_AUTH", "ERR_UNSUPPORTED_PROVIDER", "MISSING_FIELD"):
+                        raise tse
+                    if current_provider == 'google' and tse.code in ("ERR_GOOGLE_RATE_LIMIT", "ERR_NETWORK_UNREACHABLE") and attempt < max_attempts - 1:
+                        backoff_delay = 0.5 * (2 ** attempt)
+                        logger.warning(f"Google translate encountered {tse.code}, retrying in {backoff_delay}s (attempt {attempt + 1}/{max_attempts})...")
+                        time.sleep(backoff_delay)
+                        continue
+                    break
+                except Exception as e:
+                    last_exception = e
+                    break
+
+        if last_exception:
+            if isinstance(last_exception, TranslationServerException):
+                raise last_exception
+            raise TranslationServerException(
+                status_code=500,
+                code="ERR_TRANSLATION_FAILED",
+                message=f"Translation failed: {last_exception}",
+                details={"raw_error": str(last_exception)}
+            )
+
+        raise TranslationServerException(
+            status_code=500,
+            code="ERR_TRANSLATION_FAILED",
+            message="Translation failed across all candidate providers"
+        )
 
     def _execute_translation(self, text: str, source: str, target: str, provider: str, deepl_api_key: Optional[str] = None) -> str:
         session = get_global_session()
@@ -388,13 +645,28 @@ class TranslationServerException(Exception):
         self.details = details or {}
 
 
-def run_server(host: str = "127.0.0.1", port: int = 8082):
+def run_server(host: str = "127.0.0.1", port: int = 8082,
+               google_delay: float = 0.35, google_concurrency: int = 1,
+               deepl_concurrency: int = 5, argos_concurrency: int = 2,
+               cache_size: int = 10000, enable_cache: bool = True,
+               auto_failover: bool = False):
     config = load_config()
     setup_local_fork(config)
-    
+
     server_address = (host, port)
-    server = TranslationHTTPServer(server_address, TranslationRequestHandler, config=config)
-    logger.info(f"Starting Translation HTTP Server on http://{host}:{port}")
+    server = TranslationHTTPServer(
+        server_address,
+        TranslationRequestHandler,
+        config=config,
+        google_delay=google_delay,
+        google_concurrency=google_concurrency,
+        deepl_concurrency=deepl_concurrency,
+        argos_concurrency=argos_concurrency,
+        cache_size=cache_size,
+        enable_cache=enable_cache,
+        auto_failover=auto_failover
+    )
+    logger.info(f"Starting Translation HTTP Server on http://{host}:{port} (google_delay={google_delay}s, google_concurrency={google_concurrency}, cache_size={cache_size}, auto_failover={auto_failover})")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -408,9 +680,27 @@ def main():
     parser = argparse.ArgumentParser(description="Translation HTTP Microservice Server")
     parser.add_argument('--host', type=str, default='127.0.0.1', help='Host to bind server (default: 127.0.0.1)')
     parser.add_argument('--port', type=int, default=8082, help='Port to bind server (default: 8082)')
+    parser.add_argument('--google-delay', type=float, default=0.35, help='Pacing delay between consecutive Google requests in seconds (default: 0.35)')
+    parser.add_argument('--google-concurrency', type=int, default=1, help='Max concurrent Google requests (default: 1)')
+    parser.add_argument('--deepl-concurrency', type=int, default=5, help='Max concurrent DeepL requests (default: 5)')
+    parser.add_argument('--argos-concurrency', type=int, default=2, help='Max concurrent Argos requests (default: 2)')
+    parser.add_argument('--cache-size', type=int, default=10000, help='Max in-memory LRU cache entries (default: 10000)')
+    parser.add_argument('--no-cache', dest='enable_cache', action='store_false', help='Disable translation caching')
+    parser.add_argument('--auto-failover', dest='auto_failover', action='store_true', help='Enable automatic provider failover')
+    parser.set_defaults(enable_cache=True, auto_failover=False)
     args = parser.parse_args()
 
-    run_server(host=args.host, port=args.port)
+    run_server(
+        host=args.host,
+        port=args.port,
+        google_delay=args.google_delay,
+        google_concurrency=args.google_concurrency,
+        deepl_concurrency=args.deepl_concurrency,
+        argos_concurrency=args.argos_concurrency,
+        cache_size=args.cache_size,
+        enable_cache=args.enable_cache,
+        auto_failover=args.auto_failover
+    )
 
 
 if __name__ == "__main__":

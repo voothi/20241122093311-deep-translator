@@ -7,7 +7,13 @@ import pytest
 from unittest.mock import patch, MagicMock
 
 import translate_server
-from translate_server import TranslationHTTPServer, TranslationRequestHandler, get_global_session
+from translate_server import (
+    TranslationHTTPServer,
+    TranslationRequestHandler,
+    ProviderRateLimiter,
+    TranslationCache,
+    get_global_session
+)
 
 
 @pytest.fixture(scope="module")
@@ -17,12 +23,24 @@ def server_url():
     port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    
+
     base_url = f"http://127.0.0.1:{port}"
     yield base_url
-    
+
     server.shutdown()
     server.server_close()
+
+
+@pytest.fixture(autouse=True)
+def clear_server_cache(server_url):
+    # Clear cache before each test to ensure test isolation
+    req = urllib.request.Request(
+        f"{server_url}/cache/clear",
+        data=b"{}",
+        headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req) as resp:
+        assert resp.status == 200
 
 
 def test_health_endpoint(server_url):
@@ -35,6 +53,9 @@ def test_health_endpoint(server_url):
         assert "google" in data["providers"]
         assert "deepl" in data["providers"]
         assert "argos" in data["providers"]
+        assert "rate_limiter" in data
+        assert "cache" in data
+        assert "auto_failover" in data
 
 
 def test_translate_mock_provider(server_url):
@@ -59,6 +80,7 @@ def test_translate_mock_provider(server_url):
         assert data["zid"] == "20260819020400"
         assert data["trace_id"] == "trace-test-123"
         assert data["provider"] == "mock"
+        assert data["cached"] is False
         assert "duration_ms" in data
 
 
@@ -163,6 +185,7 @@ def test_translate_google_success(server_url):
             assert data["status"] == "success"
             assert data["translated_text"] == "The tree is tall."
             assert data["provider"] == "google"
+            assert data["cached"] is False
             assert data["zid"] == "20260819002900"
 
 
@@ -237,3 +260,98 @@ def test_persistent_session_singleton():
     session2 = get_global_session()
     assert session1 is session2
     assert "https://" in session1.adapters
+
+
+def test_lru_cache_hit_and_miss(server_url):
+    with patch("deep_translator.GoogleTranslator.translate", return_value="The blue sky."):
+        payload = {
+            "text": "Der blaue Himmel.",
+            "source": "de",
+            "target": "en",
+            "provider": "google"
+        }
+        req = urllib.request.Request(
+            f"{server_url}/translate",
+            data=json.dumps(payload).encode('utf-8'),
+            headers={"Content-Type": "application/json"}
+        )
+        # 1st call: Cache Miss
+        with urllib.request.urlopen(req) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            assert data["status"] == "success"
+            assert data["translated_text"] == "The blue sky."
+            assert data["cached"] is False
+
+    # 2nd call: Cache Hit (even if GoogleTranslator is NOT mocked or fails, cache returns result)
+    req2 = urllib.request.Request(
+        f"{server_url}/translate",
+        data=json.dumps(payload).encode('utf-8'),
+        headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req2) as resp2:
+        data2 = json.loads(resp2.read().decode('utf-8'))
+        assert data2["status"] == "success"
+        assert data2["translated_text"] == "The blue sky."
+        assert data2["cached"] is True
+
+
+def test_provider_rate_limiter_pacing_delay():
+    limiter = ProviderRateLimiter(google_concurrency=1, google_delay=0.15)
+    t0 = time.perf_counter()
+    with limiter.limit('google'):
+        pass
+    with limiter.limit('google'):
+        pass
+    elapsed = time.perf_counter() - t0
+    assert elapsed >= 0.14
+
+
+def test_auto_failover_google_to_argos(server_url):
+    with patch("deep_translator.GoogleTranslator.translate", side_effect=Exception("HTTP 429 Too Many Requests")):
+        with patch.object(TranslationRequestHandler, "_translate_argos", return_value="The house."):
+            payload = {
+                "text": "Das Haus.",
+                "source": "de",
+                "target": "en",
+                "provider": "google",
+                "auto_failover": True
+            }
+            req = urllib.request.Request(
+                f"{server_url}/translate",
+                data=json.dumps(payload).encode('utf-8'),
+                headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req) as resp:
+                assert resp.status == 200
+                data = json.loads(resp.read().decode('utf-8'))
+                assert data["status"] == "success"
+                assert data["translated_text"] == "The house."
+                assert data["provider"] == "argos"
+                assert data["failover_from"] == "google"
+                assert data["failed_over"] is True
+
+
+def test_auto_failover_google_to_deepl(server_url):
+    with patch("deep_translator.GoogleTranslator.translate", side_effect=Exception("HTTP 429 Too Many Requests")):
+        with patch("deep_translator.DeeplTranslator.translate", return_value="The car."):
+            payload = {
+                "text": "Das Auto.",
+                "source": "de",
+                "target": "en",
+                "provider": "google",
+                "deepl_api_key": "valid_mock_key",
+                "auto_failover": True
+            }
+            req = urllib.request.Request(
+                f"{server_url}/translate",
+                data=json.dumps(payload).encode('utf-8'),
+                headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req) as resp:
+                assert resp.status == 200
+                data = json.loads(resp.read().decode('utf-8'))
+                assert data["status"] == "success"
+                assert data["translated_text"] == "The car."
+                assert data["provider"] == "deepl"
+                assert data["failover_from"] == "google"
+                assert data["failed_over"] is True
