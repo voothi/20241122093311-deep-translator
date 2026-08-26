@@ -5,10 +5,13 @@ import json
 import requests
 from requests.adapters import HTTPAdapter
 
+DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
 _global_session = None
 
 def get_session():
     session = requests.Session()
+    session.headers.update({"User-Agent": DEFAULT_USER_AGENT})
     adapter = HTTPAdapter(pool_connections=10, pool_maxsize=10, max_retries=3)
     session.mount("https://", adapter)
     session.mount("http://", adapter)

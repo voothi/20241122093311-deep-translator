@@ -22,12 +22,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger("translate_server")
 
+DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
 _global_session = None
 
 def get_global_session() -> requests.Session:
     global _global_session
     if _global_session is None:
         _global_session = requests.Session()
+        _global_session.headers.update({"User-Agent": DEFAULT_USER_AGENT})
         adapter = HTTPAdapter(pool_connections=20, pool_maxsize=20, max_retries=3)
         _global_session.mount("https://", adapter)
         _global_session.mount("http://", adapter)
