@@ -819,7 +819,9 @@ def main():
     parser.add_argument('--cache-size', type=int, default=10000, help='Max in-memory LRU cache entries (default: 10000)')
     parser.add_argument('--no-cache', dest='enable_cache', action='store_false', help='Disable translation caching')
     parser.add_argument('--auto-failover', dest='auto_failover', action='store_true', help='Enable automatic provider failover')
-    parser.set_defaults(enable_cache=True, auto_failover=False)
+    parser.add_argument('--warmup-argos', dest='warmup_argos', action='store_true', help='Pre-warm Argos neural translation models (default: True)')
+    parser.add_argument('--no-warmup-argos', dest='warmup_argos', action='store_false', help='Disable pre-warming of Argos neural translation models')
+    parser.set_defaults(enable_cache=True, auto_failover=False, warmup_argos=True)
     args = parser.parse_args()
 
     run_server(
@@ -831,7 +833,8 @@ def main():
         argos_concurrency=args.argos_concurrency,
         cache_size=args.cache_size,
         enable_cache=args.enable_cache,
-        auto_failover=args.auto_failover
+        auto_failover=args.auto_failover,
+        warmup_argos=args.warmup_argos
     )
 
 

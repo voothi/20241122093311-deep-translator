@@ -437,3 +437,31 @@ def test_declarative_fallback_chain_provenance(server_url):
             assert data["failed_over"] is True
             assert data["failover_from"] == "google"
 
+
+def test_main_cli_warmup_argos_flags():
+    """Verify translate_server main() CLI arguments support --warmup-argos and --no-warmup-argos."""
+    with patch("translate_server.run_server") as mock_run:
+        with patch("sys.argv", ["translate_server.py", "--port", "9999", "--warmup-argos"]):
+            translate_server.main()
+            mock_run.assert_called_once()
+            _, kwargs = mock_run.call_args
+            assert kwargs.get("warmup_argos") is True
+            assert kwargs.get("port") == 9999
+
+    with patch("translate_server.run_server") as mock_run:
+        with patch("sys.argv", ["translate_server.py", "--port", "9998", "--no-warmup-argos"]):
+            translate_server.main()
+            mock_run.assert_called_once()
+            _, kwargs = mock_run.call_args
+            assert kwargs.get("warmup_argos") is False
+            assert kwargs.get("port") == 9998
+
+    with patch("translate_server.run_server") as mock_run:
+        with patch("sys.argv", ["translate_server.py", "--port", "9997"]):
+            translate_server.main()
+            mock_run.assert_called_once()
+            _, kwargs = mock_run.call_args
+            assert kwargs.get("warmup_argos") is True
+            assert kwargs.get("port") == 9997
+
+
