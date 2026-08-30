@@ -240,7 +240,7 @@ def get_argos_translation_model(source: str, target: str):
 
 
 class TranslationRequestHandler(BaseHTTPRequestHandler):
-    protocol_version = "HTTP/1.1"
+    protocol_version = "HTTP/1.0"
 
     def setup(self):
         super().setup()
@@ -265,6 +265,7 @@ class TranslationRequestHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
         self._send_cors_headers()
+        self.send_header('Connection', 'close')
         self.end_headers()
 
     def _send_json(self, status_code: int, data_obj: dict):
@@ -273,6 +274,7 @@ class TranslationRequestHandler(BaseHTTPRequestHandler):
         self._send_cors_headers()
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Content-Length', str(len(body)))
+        self.send_header('Connection', 'close')
         self.end_headers()
         self.wfile.write(body)
 
@@ -714,6 +716,18 @@ def run_server(host: str = "127.0.0.1", port: int = 8082,
         enable_cache=enable_cache,
         auto_failover=auto_failover
     )
+    # Launch background pre-warming of Argos models
+    def _prewarm_argos():
+        try:
+            logger.info("Pre-warming Argos translation models in background...")
+            get_argos_translation_model("en", "de")
+            get_argos_translation_model("de", "ru")
+            logger.info("Argos translation models pre-warmed successfully.")
+        except Exception as e:
+            logger.debug(f"Argos model pre-warming exception: {e}")
+
+    threading.Thread(target=_prewarm_argos, daemon=True).start()
+
     logger.info(f"Starting Translation HTTP Server on http://{host}:{port} (google_delay={google_delay}s, google_concurrency={google_concurrency}, cache_size={cache_size}, auto_failover={auto_failover})")
     try:
         server.serve_forever()
