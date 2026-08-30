@@ -386,6 +386,8 @@ class TranslationRequestHandler(BaseHTTPRequestHandler):
             source = req.get('source')
             target = req.get('target')
             provider = (req.get('provider') or 'google').lower()
+            chain = req.get('chain')
+            strategy = req.get('strategy') or req.get('failover_strategy')
             deepl_api_key = req.get('deepl_api_key')
             req_failover = req.get('auto_failover')
 
@@ -406,6 +408,9 @@ class TranslationRequestHandler(BaseHTTPRequestHandler):
                     "trace_id": trace_id,
                     "translated_text": "",
                     "provider": provider,
+                    "provider_requested": provider,
+                    "provider_resolved": provider,
+                    "is_fallback": False,
                     "cached": False,
                     "duration_ms": 0.0
                 })
@@ -428,6 +433,9 @@ class TranslationRequestHandler(BaseHTTPRequestHandler):
                     "trace_id": trace_id,
                     "translated_text": cached_text,
                     "provider": provider,
+                    "provider_requested": provider,
+                    "provider_resolved": provider,
+                    "is_fallback": False,
                     "cached": True,
                     "duration_ms": duration_ms
                 })
@@ -435,23 +443,25 @@ class TranslationRequestHandler(BaseHTTPRequestHandler):
 
             # 2. Execute translation with rate limiting, adaptive backoff, and failover
             try:
-                translated_text, final_provider, failed_over = self._translate_with_retry_and_failover(
+                translated_text, requested_provider, final_provider, is_fallback = self._translate_with_retry_and_failover(
                     text=text,
                     source=source,
                     target=target,
                     provider=provider,
                     deepl_api_key=deepl_api_key,
                     rate_limiter=rate_limiter,
-                    auto_failover=auto_failover
+                    auto_failover=auto_failover,
+                    chain=chain,
+                    strategy=strategy
                 )
                 duration_ms = round((time.perf_counter() - t0) * 1000, 2)
 
                 # Store in cache under requested provider and final provider
-                cache.set(source, target, provider, text, translated_text)
-                if failed_over:
+                cache.set(source, target, requested_provider, text, translated_text)
+                if is_fallback:
                     cache.set(source, target, final_provider, text, translated_text)
 
-                logger.info(f"[{zid or 'NO_ZID'}] [{trace_id or 'NO_TRACE'}] provider={final_provider}{' (failover from ' + provider + ')' if failed_over else ''} chars={len(text)} duration_ms={duration_ms}")
+                logger.info(f"[{zid or 'NO_ZID'}] [{trace_id or 'NO_TRACE'}] provider={final_provider}{' (failover from ' + requested_provider + ')' if is_fallback else ''} chars={len(text)} duration_ms={duration_ms}")
 
                 resp_payload = {
                     "status": "success",
@@ -459,11 +469,14 @@ class TranslationRequestHandler(BaseHTTPRequestHandler):
                     "trace_id": trace_id,
                     "translated_text": translated_text,
                     "provider": final_provider,
+                    "provider_requested": requested_provider,
+                    "provider_resolved": final_provider,
+                    "is_fallback": is_fallback,
                     "cached": False,
                     "duration_ms": duration_ms
                 }
-                if failed_over:
-                    resp_payload["failover_from"] = provider
+                if is_fallback:
+                    resp_payload["failover_from"] = requested_provider
                     resp_payload["failed_over"] = True
 
                 self._send_json(200, resp_payload)
@@ -497,34 +510,64 @@ class TranslationRequestHandler(BaseHTTPRequestHandler):
 
     def _translate_with_retry_and_failover(self, text: str, source: str, target: str, provider: str,
                                           deepl_api_key: Optional[str], rate_limiter: ProviderRateLimiter,
-                                          auto_failover: bool) -> Tuple[str, str, bool]:
-        if provider not in ('google', 'deepl', 'argos', 'mock'):
-            raise TranslationServerException(
-                status_code=400,
-                code="ERR_UNSUPPORTED_PROVIDER",
-                message=f"Unsupported translation provider: '{provider}'"
-            )
+                                          auto_failover: bool,
+                                          chain: Optional[Any] = None,
+                                          strategy: Optional[str] = None) -> Tuple[str, str, str, bool]:
+        if chain:
+            if isinstance(chain, list):
+                providers_to_try = [p.strip().lower() for p in chain if isinstance(p, str) and p.strip()]
+            elif isinstance(chain, str):
+                providers_to_try = [p.strip().lower() for p in chain.split(',') if p.strip()]
+            else:
+                providers_to_try = []
+        elif provider and ',' in provider:
+            providers_to_try = [p.strip().lower() for p in provider.split(',') if p.strip()]
+        else:
+            primary = (provider or 'google').strip().lower()
+            providers_to_try = [primary]
 
-        providers_to_try = [provider]
-        if auto_failover:
-            if provider == 'google':
-                has_deepl = bool(deepl_api_key or os.environ.get("DEEPL_API_KEY"))
-                if has_deepl:
-                    providers_to_try.append('deepl')
-                providers_to_try.append('argos')
-            elif provider == 'deepl':
-                providers_to_try.append('google')
-                providers_to_try.append('argos')
+        if not providers_to_try:
+            providers_to_try = ['google']
+
+        requested_provider = providers_to_try[0]
+
+        valid_providers = ('google', 'deepl', 'argos', 'mock')
+        for p in providers_to_try:
+            if p not in valid_providers:
+                raise TranslationServerException(
+                    status_code=400,
+                    code="ERR_UNSUPPORTED_PROVIDER",
+                    message=f"Unsupported translation provider: '{p}'"
+                )
+
+        eff_strategy = (strategy or "").strip().lower()
+        if not eff_strategy:
+            eff_strategy = 'chain' if auto_failover else 'strict' if (len(providers_to_try) == 1 and not auto_failover) else 'chain'
+
+        if eff_strategy == 'strict':
+            providers_to_try = [providers_to_try[0]]
+        elif eff_strategy == 'chain' or auto_failover:
+            if len(providers_to_try) == 1 and auto_failover:
+                primary = providers_to_try[0]
+                if primary == 'google':
+                    has_deepl = bool(deepl_api_key or os.environ.get("DEEPL_API_KEY"))
+                    if has_deepl:
+                        providers_to_try.append('deepl')
+                    providers_to_try.append('argos')
+                elif primary == 'deepl':
+                    providers_to_try.append('google')
+                    providers_to_try.append('argos')
 
         last_exception = None
         for current_provider in providers_to_try:
-            # If auto_failover is enabled, perform retries with backoff on Google rate limit/transient
-            max_attempts = 3 if (auto_failover and current_provider == 'google') else 1
+            # If auto_failover or chain is enabled, perform retries with backoff on Google rate limit/transient
+            max_attempts = 3 if ((eff_strategy == 'chain' or auto_failover) and current_provider == 'google') else 1
             for attempt in range(max_attempts):
                 try:
                     with rate_limiter.limit(current_provider):
                         translated = self._execute_translation(text, source, target, current_provider, deepl_api_key)
-                        return translated, current_provider, (current_provider != provider)
+                        is_fallback = (current_provider != requested_provider)
+                        return translated, requested_provider, current_provider, is_fallback
                 except TranslationServerException as tse:
                     last_exception = tse
                     # Auth or bad request errors should not failover or retry

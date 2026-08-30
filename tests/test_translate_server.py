@@ -367,3 +367,73 @@ def test_argos_warmup_and_health_reporting():
             t.join(timeout=2.0)
             translate_server._argos_models[("en", "de")] = mock_model
             assert translate_server.get_argos_warmup_status() == "warm"
+
+
+def test_declarative_chain_and_provenance_metadata(server_url):
+    payload = {
+        "text": "Hello world",
+        "source": "en",
+        "target": "de",
+        "chain": ["mock", "google"],
+        "strategy": "chain"
+    }
+    req = urllib.request.Request(
+        f"{server_url}/translate",
+        data=json.dumps(payload).encode('utf-8'),
+        headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req) as resp:
+        assert resp.status == 200
+        data = json.loads(resp.read().decode('utf-8'))
+        assert data["status"] == "success"
+        assert data["translated_text"] == "[MOCK] Hello world"
+        assert data["provider"] == "mock"
+        assert data["provider_requested"] == "mock"
+        assert data["provider_resolved"] == "mock"
+        assert data["is_fallback"] is False
+
+
+def test_strict_strategy_stops_on_error(server_url):
+    with patch("deep_translator.GoogleTranslator.translate", side_effect=Exception("HTTP 500 Service Error")):
+        payload = {
+            "text": "Fail fast text",
+            "source": "en",
+            "target": "de",
+            "chain": ["google", "mock"],
+            "strategy": "strict"
+        }
+        req = urllib.request.Request(
+            f"{server_url}/translate",
+            data=json.dumps(payload).encode('utf-8'),
+            headers={"Content-Type": "application/json"}
+        )
+        with pytest.raises(urllib.error.HTTPError) as excinfo:
+            urllib.request.urlopen(req)
+        assert excinfo.value.code in (500, 503)
+
+
+def test_declarative_fallback_chain_provenance(server_url):
+    with patch("deep_translator.GoogleTranslator.translate", side_effect=Exception("HTTP 429 Rate Limit")):
+        payload = {
+            "text": "Falling over",
+            "source": "en",
+            "target": "de",
+            "chain": ["google", "mock"],
+            "strategy": "chain"
+        }
+        req = urllib.request.Request(
+            f"{server_url}/translate",
+            data=json.dumps(payload).encode('utf-8'),
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req) as resp:
+            assert resp.status == 200
+            data = json.loads(resp.read().decode('utf-8'))
+            assert data["status"] == "success"
+            assert data["translated_text"] == "[MOCK] Falling over"
+            assert data["provider_requested"] == "google"
+            assert data["provider_resolved"] == "mock"
+            assert data["is_fallback"] is True
+            assert data["failed_over"] is True
+            assert data["failover_from"] == "google"
+
