@@ -204,7 +204,44 @@ class TranslationHTTPServer(ThreadingHTTPServer):
         super().__init__(server_address, RequestHandlerClass, bind_and_activate)
 
 
+_argos_models: Dict[Tuple[str, str], Any] = {}
+_argos_lock = threading.Lock()
+
+
+def setup_argostranslate_path():
+    """Ensure argostranslate site-packages from neighboring workspace is accessible if needed."""
+    try:
+        import argostranslate.translate
+        return
+    except ImportError:
+        pass
+    base_dir = Path(__file__).resolve().parent.parent
+    site_packages = base_dir / "20241121100211-argotranslate" / "venv" / "Lib" / "site-packages"
+    if site_packages.exists() and str(site_packages) not in sys.path:
+        sys.path.insert(0, str(site_packages))
+
+
+def get_argos_translation_model(source: str, target: str):
+    """Retrieve or initialize and cache an in-memory Argos translation model instance."""
+    setup_argostranslate_path()
+    key = (source.lower(), target.lower())
+    with _argos_lock:
+        if key in _argos_models:
+            return _argos_models[key]
+        try:
+            import argostranslate.translate
+            model = argostranslate.translate.get_translation_from_codes(source, target)
+            if model:
+                _argos_models[key] = model
+                return model
+        except Exception as e:
+            logger.debug(f"In-memory Argos model loading failed for {source}->{target}: {e}")
+    return None
+
+
 class TranslationRequestHandler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
     def setup(self):
         super().setup()
         # Enforce strict 5-second socket timeout to prevent orphan hangs
@@ -580,14 +617,22 @@ class TranslationRequestHandler(BaseHTTPRequestHandler):
                 )
 
     def _translate_argos(self, text: str, source: str, target: str) -> str:
-        # Try direct in-process argostranslate if installed
+        # 1. Fast in-memory cached model execution
+        try:
+            model = get_argos_translation_model(source, target)
+            if model is not None:
+                return model.translate(text)
+        except Exception as e:
+            logger.warning(f"In-memory Argos translation failed for {source}->{target}: {e}")
+
+        # 2. Try direct argostranslate.translate
         try:
             import argostranslate.translate
             return argostranslate.translate.translate(text, source, target)
-        except ImportError:
+        except Exception:
             pass
 
-        # Try invoking argos CLI in neighboring workspace if present
+        # 3. Try invoking argos CLI in neighboring workspace if present
         candidate_exes = [
             Path(__file__).resolve().parent.parent / "20241121100211-argotranslate" / "venv" / "Scripts" / "argos-translate.exe",
             Path(__file__).resolve().parent.parent / "20241121100211-argotranslate" / "venv" / "Scripts" / "argos-translate",
