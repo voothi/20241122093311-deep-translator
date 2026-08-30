@@ -355,3 +355,15 @@ def test_auto_failover_google_to_deepl(server_url):
                 assert data["provider"] == "deepl"
                 assert data["failover_from"] == "google"
                 assert data["failed_over"] is True
+
+
+def test_argos_warmup_and_health_reporting():
+    mock_model = MagicMock()
+    mock_model.translate.side_effect = lambda t: f"Warm: {t}"
+
+    with patch.dict(translate_server._argos_models, {}, clear=True):
+        with patch("translate_server.get_argos_translation_model", return_value=mock_model):
+            t = translate_server.warmup_argos_models_async([("en", "de")])
+            t.join(timeout=2.0)
+            translate_server._argos_models[("en", "de")] = mock_model
+            assert translate_server.get_argos_warmup_status() == "warm"

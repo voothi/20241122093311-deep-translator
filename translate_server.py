@@ -205,7 +205,15 @@ class TranslationHTTPServer(ThreadingHTTPServer):
 
 
 _argos_models: Dict[Tuple[str, str], Any] = {}
-_argos_lock = threading.Lock()
+_argos_lock = threading.RLock()
+_argos_warmup_status = "available"
+
+
+def get_argos_warmup_status() -> str:
+    with _argos_lock:
+        if _argos_models:
+            return "warm"
+        return _argos_warmup_status
 
 
 def setup_argostranslate_path():
@@ -237,6 +245,34 @@ def get_argos_translation_model(source: str, target: str):
         except Exception as e:
             logger.debug(f"In-memory Argos model loading failed for {source}->{target}: {e}")
     return None
+
+
+def warmup_argos_models_async(language_pairs=None):
+    """Spawn low-priority daemon thread to pre-warm installed Argos translation models into RAM."""
+    global _argos_warmup_status
+    _argos_warmup_status = "warming"
+    pairs = language_pairs or [("en", "de"), ("de", "ru"), ("en", "ru"), ("de", "en")]
+
+    def _worker():
+        global _argos_warmup_status
+        try:
+            logger.info("Pre-warming Argos translation models in background...")
+            for src, tgt in pairs:
+                get_argos_translation_model(src, tgt)
+            with _argos_lock:
+                if _argos_models:
+                    _argos_warmup_status = "warm"
+                else:
+                    _argos_warmup_status = "available"
+            logger.info(f"Argos translation models pre-warmed. Status: {_argos_warmup_status}")
+        except Exception as e:
+            logger.debug(f"Argos model pre-warming worker exception: {e}")
+            with _argos_lock:
+                _argos_warmup_status = "warm" if _argos_models else "available"
+
+    t = threading.Thread(target=_worker, daemon=True, name="argos-warmup")
+    t.start()
+    return t
 
 
 class TranslationRequestHandler(BaseHTTPRequestHandler):
@@ -297,7 +333,7 @@ class TranslationRequestHandler(BaseHTTPRequestHandler):
             providers = {
                 "google": "available",
                 "deepl": "available",
-                "argos": "available"
+                "argos": get_argos_warmup_status()
             }
             rate_limiter = getattr(self.server, 'rate_limiter', _default_rate_limiter)
             cache = getattr(self.server, 'cache', _default_cache)
@@ -699,7 +735,7 @@ def run_server(host: str = "127.0.0.1", port: int = 8082,
                google_delay: float = 0.35, google_concurrency: int = 1,
                deepl_concurrency: int = 5, argos_concurrency: int = 2,
                cache_size: int = 10000, enable_cache: bool = True,
-               auto_failover: bool = False):
+               auto_failover: bool = False, warmup_argos: bool = True):
     config = load_config()
     setup_local_fork(config)
 
@@ -716,17 +752,8 @@ def run_server(host: str = "127.0.0.1", port: int = 8082,
         enable_cache=enable_cache,
         auto_failover=auto_failover
     )
-    # Launch background pre-warming of Argos models
-    def _prewarm_argos():
-        try:
-            logger.info("Pre-warming Argos translation models in background...")
-            get_argos_translation_model("en", "de")
-            get_argos_translation_model("de", "ru")
-            logger.info("Argos translation models pre-warmed successfully.")
-        except Exception as e:
-            logger.debug(f"Argos model pre-warming exception: {e}")
-
-    threading.Thread(target=_prewarm_argos, daemon=True).start()
+    if warmup_argos:
+        warmup_argos_models_async()
 
     logger.info(f"Starting Translation HTTP Server on http://{host}:{port} (google_delay={google_delay}s, google_concurrency={google_concurrency}, cache_size={cache_size}, auto_failover={auto_failover})")
     try:
